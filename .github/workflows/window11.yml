@@ -1,0 +1,23 @@
+name: Windows 11 Remote Environment
+
+on:
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  setup-windows11:
+    runs-on: windows-2022  # This is Windows 11 equivalent in GitHub Actions
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Remote Desktop
+        run: |
+          Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Get-NetIPAddress | Where-Object {$_.AddressFamily -eq "IPv4" -and $_.IPAddress -notmatch "^127\."} | Select-Object IPAddress
+        
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
