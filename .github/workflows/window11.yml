@@ -12,7 +12,7 @@ jobs:
       
       # Download artifacts from previous runs
       - name: Download previous artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: windows-env
           path: C:\saved-data
@@ -58,7 +58,7 @@ jobs:
       
       # Save important files for next run
       - name: Save artifacts for next run
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()  # Run even if previous steps fail
         with:
           name: windows-env
