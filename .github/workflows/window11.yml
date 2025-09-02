@@ -1,23 +1,70 @@
-name: Windows 11 Remote Environment
+name: Windows Remote Environment
 
 on:
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
-  setup-windows11:
-    runs-on: windows-2022  # This is Windows 11 equivalent in GitHub Actions
+  setup-windows:
+    runs-on: windows-2022
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-        
-      - name: Setup Remote Desktop
+      
+      # Download artifacts from previous runs
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: windows-env
+          path: C:\saved-data
+        continue-on-error: true  # Continue even if no artifacts exist yet
+      
+      # Quick environment setup script
+      - name: Setup Environment
         run: |
-          Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
+          # Create setup script
+          @"
+          # Enable RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Get-NetIPAddress | Where-Object {$_.AddressFamily -eq "IPv4" -and $_.IPAddress -notmatch "^127\."} | Select-Object IPAddress
-        
+          
+          # Set password for RDP access
+          `$Password = ConvertTo-SecureString "P@ssw0rd!" -AsPlainText -Force
+          Get-LocalUser -Name "runneradmin" | Set-LocalUser -Password `$Password
+          
+          # Install Chrome (if not already installed)
+          if (!(Test-Path "C:\Program Files\Google\Chrome\Application\chrome.exe")) {
+            Invoke-WebRequest -Uri "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile "chrome_installer.exe"
+            Start-Process -FilePath ".\chrome_installer.exe" -ArgumentList "/silent", "/install" -Wait
+          }
+          
+          # Install Cloudflared (if not already installed)
+          if (!(Test-Path "C:\cloudflared\cloudflared.exe")) {
+            New-Item -Path "C:\cloudflared" -ItemType Directory -Force
+            Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "C:\cloudflared\cloudflared.exe"
+          }
+          
+          # Display IP address for connection
+          ipconfig
+          "@ | Out-File -FilePath "C:\setup.ps1"
+          
+          # Run setup script
+          powershell -File "C:\setup.ps1"
+      
+      # Start tmate session
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
         with:
           limit-access-to-actor: true
+      
+      # Save important files for next run
+      - name: Save artifacts for next run
+        uses: actions/upload-artifact@v3
+        if: always()  # Run even if previous steps fail
+        with:
+          name: windows-env
+          path: |
+            C:\cloudflared\
+            C:\saved-data\
+            C:\Users\runneradmin\Documents\
+            C:\Users\runneradmin\Desktop\
+          retention-days: 1  # Keep for 1 day
